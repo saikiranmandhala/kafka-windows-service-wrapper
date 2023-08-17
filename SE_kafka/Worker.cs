@@ -1,20 +1,13 @@
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
-namespace KafkaWindowsServiceWrapper
+namespace SE_kafka
 {
-    public class Worker : IHostedService, IDisposable
+    public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
         private readonly IConfiguration _configuration;
         private Process? _process;
-
         public Worker(ILogger<Worker> logger, IConfiguration configuration)
         {
             _logger = logger;
@@ -22,14 +15,14 @@ namespace KafkaWindowsServiceWrapper
             _configuration = configuration;
         }
 
-        public void Dispose()
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _process?.Dispose();
-            _process = null;
-        }
+            //while (!stoppingToken.IsCancellationRequested)
+            //{
+            //    _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
+            //    await Task.Delay(1000, stoppingToken);
+            //}
 
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
             if (_process != null)
             {
                 if (_process.HasExited)
@@ -44,29 +37,7 @@ namespace KafkaWindowsServiceWrapper
             }
             _process = IsZookeeper() ? CreateProcess(@"bin\windows\zookeeper-server-start.bat", @"config\zookeeper.properties") : CreateProcess(@"bin\windows\kafka-server-start.bat", @"config\server.properties");
             Thread.Sleep(2000);
-            return _process.HasExited ? Task.FromException(new Exception("Could not start app")) : Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            if (_process != null)
-            {
-                if (_process.HasExited)
-                {
-                    _process.Dispose();
-                    _process = null;
-                }
-                else
-                {
-                    _logger.LogInformation("Stopping service");
-                    var stopProcess = IsZookeeper() ? CreateProcess(@"bin\windows\zookeeper-server-stop.bat", @"config\zookeeper.properties") : CreateProcess(@"bin\windows\kafka-server-stop.bat", @"config\server.properties");
-                    stopProcess.WaitForExit();
-                    _process.WaitForExit();
-                    _process.Dispose();
-                    _process = null;
-                }
-            }
-            return Task.CompletedTask;
+            //_process.HasExited ? Task.FromException(new Exception("Could not start app")) : Task.CompletedTask;
         }
 
         private Process CreateProcess(string relativeBatchFile, string relativeConfigFile)
@@ -118,5 +89,6 @@ namespace KafkaWindowsServiceWrapper
             var name = _configuration.GetValue("Name", "");
             return name.Contains("Zookeeper", StringComparison.InvariantCultureIgnoreCase);
         }
+
     }
 }
